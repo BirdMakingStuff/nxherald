@@ -1,52 +1,57 @@
-import Image from "next/image";
+"use client";
+
+import { FormEvent, useState } from "react";
+
+function parseInputToPath(input: string): string | null {
+	const trimmed = input.trim();
+	if (!trimmed) return null;
+
+	const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+
+	try {
+		const parsed = new URL(withProtocol);
+		return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+	} catch {
+		return null;
+	}
+}
 
 export default function Home() {
-	return (
-		<div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-			<main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-				<Image className="dark:invert" src="/next.svg" alt="Next.js logo" width={180} height={38} priority />
-				<ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-					<li className="mb-2 tracking-[-.01em]">
-						Get started by editing{" "}
-						<code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-							src/app/page.tsx
-						</code>
-						.
-					</li>
-					<li className="tracking-[-.01em]">Save and see your changes instantly.</li>
-				</ol>
+	const [inputUrl, setInputUrl] = useState("");
+	const [error, setError] = useState("");
 
-				<div className="flex gap-4 items-center flex-col sm:flex-row">
-					<a
-						className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-						href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-						target="_blank"
-						rel="noopener noreferrer"
-					>
-						Read our docs
-					</a>
+	const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+		event.preventDefault();
+
+		const path = parseInputToPath(inputUrl);
+		if (!path) {
+			setError("Please enter a valid URL.");
+			return;
+		}
+
+		setError("");
+		window.location.assign(`${window.location.origin}${path}`);
+	};
+
+	return (
+		<main className="news-page min-h-screen bg-[linear-gradient(180deg,#f7f4ee_0%,#f0ebe4_100%)] px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
+			<section className="mx-auto max-w-4xl overflow-hidden rounded-4xl border border-black/10 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
+				<div className="border-b border-black/10 bg-neutral-50 px-5 py-4 sm:px-8">
+					<span className="text-sm font-semibold uppercase text-neutral-500 font-serif">The Northern Express Herald</span>
 				</div>
-			</main>
-			<footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-				<a
-					className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-					href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-					target="_blank"
-					rel="noopener noreferrer"
-				>
-					<Image aria-hidden src="/file.svg" alt="File icon" width={16} height={16} />
-					Learn
-				</a>
-				<a
-					className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-					href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-					target="_blank"
-					rel="noopener noreferrer"
-				>
-					<Image aria-hidden src="/globe.svg" alt="Globe icon" width={16} height={16} />
-					Go to nextjs.org →
-				</a>
-			</footer>
-		</div>
+				<form onSubmit={handleSubmit} className="px-5 py-6 sm:px-8 lg:px-12 lg:py-10">
+					<input
+						type="url"
+						value={inputUrl}
+						onChange={(event) => setInputUrl(event.target.value)}
+						placeholder="Paste in the URL and press enter"
+						className="w-full rounded-xl border border-black/20 px-4 py-3 text-base text-[#172033] outline-none focus:border-black/40 focus:ring-2 focus:ring-black/10"
+						required
+						autoFocus
+					/>
+					{error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
+				</form>
+			</section>
+		</main>
 	);
 }
