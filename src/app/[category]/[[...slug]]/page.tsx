@@ -1,6 +1,8 @@
 import { JSDOM } from "jsdom";
 import type { Metadata } from "next";
 
+export const runtime = 'nodejs';
+
 type PageProps = {
   params: Promise<{
     category: string;
