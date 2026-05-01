@@ -1,8 +1,4 @@
-import createDOMPurify from "dompurify";
-import { JSDOM } from "jsdom";
-
-const window = new JSDOM("").window;
-const DOMPurify = createDOMPurify(window);
+import sanitizeHtml from "sanitize-html";
 
 type PageProps = {
   params: Promise<{
@@ -16,12 +12,15 @@ export default async function ArticlePage({ params }: PageProps) {
   const slug = resolvedParams.slug ?? [];
 
   const html = await fetch(`https://nzherald.co.nz/${resolvedParams.category}/${slug.join("/")}`).then((res) => res.text());
-  const document = new JSDOM(html).window.document;
-  const article = document.querySelectorAll("article")[0]?.innerHTML ?? "";
+  const articleMatch = html.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i);
+  const article = articleMatch?.[1] ?? "";
 
-  const cleanArticle = DOMPurify.sanitize(article, {
-    ALLOWED_TAGS: ["p", "a", "strong", "em", "ul", "ol", "li", "img"],
-    ALLOWED_ATTR: ["href"],
+  const cleanArticle = sanitizeHtml(article, {
+    allowedTags: ["p", "a", "strong", "em", "ul", "ol", "li", "img"],
+    allowedAttributes: {
+      a: ["href"],
+      img: ["src", "alt"],
+    },
   });
 
   return <article dangerouslySetInnerHTML={{ __html: cleanArticle }} />;
