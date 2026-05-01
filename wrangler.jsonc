@@ -15,14 +15,6 @@
 		"nodejs_compat",
 		"global_fetch_strictly_public"
 	],
-	"routes": [
-		{
-			"pattern": "nzherald.birdmakingstuff.nz",
-			"zone_name": "birdmakingstuff.nz",
-			"custom_domain": true,
-			"previews_enabled": true,
-		}
-	],
 	"assets": {
 		"binding": "ASSETS",
 		"directory": ".open-next/assets"
@@ -48,7 +40,7 @@
 	 * Smart Placement
 	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
 	 */
-	"placement": {  "mode": "smart" }
+	// "placement": {  "mode": "smart" }
 	/**
 	 * Bindings
 	 * Bindings allow your Worker to interact with resources on the Cloudflare Developer Platform, including
