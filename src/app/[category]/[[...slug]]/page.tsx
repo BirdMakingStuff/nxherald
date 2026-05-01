@@ -51,6 +51,8 @@ function pruneHtml(html: string) {
   document.querySelectorAll("[data-test-ui='follow-authors-skeleton']").forEach((element) => element.remove());
   document.querySelectorAll("div[data-test-ui='author-role-distributor-container']").forEach((element) => element.remove());
   document.querySelectorAll("div[data-test-ui='nzh-premium-badge']").forEach((element) => element.remove());
+  document.querySelectorAll("div[data-test-ui='author-meta-container']").forEach((element) => element.remove());
+  document.querySelectorAll("div[data-test-ui='hero-container']").forEach((element) => element.remove());
 
   document.querySelectorAll("img, source").forEach((element) => {
     const dataSrcset = element.getAttribute("data-srcset");
