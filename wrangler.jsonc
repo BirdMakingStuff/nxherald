@@ -15,6 +15,14 @@
 		"nodejs_compat",
 		"global_fetch_strictly_public"
 	],
+	"routes": [
+		{
+			"pattern": "nzherald.birdmakingstuff.nz",
+			"zone_name": "birdmakingstuff.nz",
+			"custom_domain": true,
+			"previews_enabled": true,
+		}
+	],
 	"assets": {
 		"binding": "ASSETS",
 		"directory": ".open-next/assets"

@@ -1,4 +1,4 @@
-import { JSDOM } from "jsdom";
+import { HTMLRewriter } from 'htmlrewriter'
 import type { Metadata } from "next";
 
 export const runtime = 'nodejs';
@@ -41,78 +41,94 @@ function parseBestSrcFromSrcset(srcset: string) {
   return best.url;
 }
 
-function pruneHtml(html: string) {
-  const dom = new JSDOM(`<body>${html}</body>`);
-  const { document } = dom.window;
+async function pruneHtml(html: string) {
+
   const mediaTags = new Set(["audio", "figure", "img", "picture", "video"]);
 
-  document.querySelector("#share-bar-above")?.remove();
-  document.querySelector("#share-bar-below")?.remove();
-  document.querySelectorAll("div#ad-container").forEach((element) => element.remove());
-  document.querySelector("[data-test-ui='article-sidebar-bottom']")?.remove();
-  document.querySelector("#article-RHRLatestfrom")?.remove();
-  document.querySelectorAll("[data-test-ui='follow-authors-skeleton']").forEach((element) => element.remove());
-  document.querySelectorAll("div[data-test-ui='author-role-distributor-container']").forEach((element) => element.remove());
-  document.querySelectorAll("div[data-test-ui='nzh-premium-badge']").forEach((element) => element.remove());
-  document.querySelectorAll("div[data-test-ui='author-meta-container']").forEach((element) => element.remove());
-  document.querySelectorAll("div[data-test-ui='hero-container']").forEach((element) => element.remove());
+  const selectorsToRemove = [
+    "#share-bar-above",
+    "#share-bar-below",
+    "div#ad-container",
+    "[data-test-ui='article-sidebar-bottom']",
+    "#article-RHRLatestfrom",
+    "[data-test-ui='follow-authors-skeleton']",
+    "div[data-test-ui='author-role-distributor-container']",
+    "div[data-test-ui='nzh-premium-badge']",
+    "div[data-test-ui='author-meta-container']",
+    "div[data-test-ui='hero-container']",
+  ];
 
-  document.querySelectorAll("img, source").forEach((element) => {
-    const dataSrcset = element.getAttribute("data-srcset");
-    const dataSrc = element.getAttribute("data-src");
+  const rewriter = new HTMLRewriter()
+    .on("img, source", {
+      element(el: any) {
+        const dataSrcset = el.getAttribute("data-srcset");
+        const dataSrc = el.getAttribute("data-src");
 
-    if (dataSrcset && !element.getAttribute("srcset")) {
-      element.setAttribute("srcset", dataSrcset);
-    }
+        if (dataSrcset && !el.getAttribute("srcset")) {
+          el.setAttribute("srcset", dataSrcset);
+        }
 
-    if (dataSrc && !element.getAttribute("src")) {
-      element.setAttribute("src", dataSrc);
-    }
+        if (dataSrc && !el.getAttribute("src")) {
+          el.setAttribute("src", dataSrc);
+        }
 
-    const srcset = element.getAttribute("srcset") ?? "";
-    const bestSrc = parseBestSrcFromSrcset(srcset);
+        const srcset = el.getAttribute("srcset") ?? "";
+        const bestSrc = parseBestSrcFromSrcset(srcset);
 
-    if (bestSrc && element.tagName.toLowerCase() === "img") {
-      element.setAttribute("src", bestSrc);
-    }
-  });
+        if (bestSrc && String(el.tagName).toLowerCase() === "img") {
+          el.setAttribute("src", bestSrc);
+        }
+      },
+    })
+    .on("*", {
+      element(el: any) {
+        el.removeAttribute("class");
+        el.removeAttribute("id");
 
-  const elements = Array.from(document.body.querySelectorAll("*"));
+        // remove data-* attributes if method exists
+        const getNames = typeof el.getAttributeNames === "function" ? el.getAttributeNames : undefined;
+        const names: string[] = getNames ? getNames.call(el) : [];
+        for (const name of names) {
+          if (name.startsWith("data-")) el.removeAttribute(name);
+        }
 
-  for (const element of elements.reverse()) {
-    element.removeAttribute("class");
-    element.removeAttribute("id");
+        const style = el.getAttribute("style") ?? "";
+        if (style) {
+          const cleanedStyle = String(style)
+            .replace(/(?:^|;)\s*display\s*:\s*none\s*;?/gi, ";")
+            .replace(/;{2,}/g, ";")
+            .replace(/^;|;$/g, "")
+            .trim();
 
-    const attributes = Array.from(element.attributes);
+          if (cleanedStyle) {
+            el.setAttribute("style", cleanedStyle);
+          } else {
+            el.removeAttribute("style");
+          }
+        }
+      },
+    });
 
-    for (const attribute of attributes) {
-      if (attribute.name.startsWith("data-")) {
-        element.removeAttribute(attribute.name);
-      }
-    }
-
-    const style = element.getAttribute("style") ?? "";
-
-    if (style) {
-      const cleanedStyle = style
-        .replace(/(?:^|;)\s*display\s*:\s*none\s*;?/gi, ";")
-        .replace(/;{2,}/g, ";")
-        .replace(/^;|;$/g, "")
-        .trim();
-
-      if (cleanedStyle) {
-        element.setAttribute("style", cleanedStyle);
-      } else {
-        element.removeAttribute("style");
-      }
-    }
-
-    if (!element.textContent?.trim() && !mediaTags.has(element.tagName.toLowerCase())) {
-      element.remove();
-    }
+  for (const sel of selectorsToRemove) {
+    rewriter.on(sel, {
+      element(el: any) {
+        el.remove();
+      },
+    });
   }
 
-  return document.body.innerHTML.trim();
+  const response = await rewriter.transform(new Response(`<body>${html}</body>`));
+  const transformed = await response.text();
+  const bodyMatch = transformed.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  const inner = bodyMatch ? bodyMatch[1] : transformed;
+
+  // As a final pass: remove elements that are empty (no text and not media).
+  // Use a simple regex-based cleanup to strip empty tags not containing media content.
+  const cleaned = inner.replace(/<([a-zA-Z0-9-]+)([^>]*)>\s*<\/\1>/g, (_m, tag) => {
+    return mediaTags.has(tag.toLowerCase()) ? _m : "";
+  });
+
+  return cleaned.trim();
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -170,7 +186,7 @@ export default async function ArticlePage({ params }: PageProps) {
   const articleMatch = html.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i);
   const article = articleMatch?.[1] ?? "";
 
-  const cleanedArticle = article ? pruneHtml(article) : "";
+  const cleanedArticle = article ? await pruneHtml(article) : "";
 
   return (
     <main className="news-page min-h-screen bg-[linear-gradient(180deg,#f7f4ee_0%,#f0ebe4_100%)] px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
