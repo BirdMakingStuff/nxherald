@@ -10,6 +10,15 @@ type PageProps = {
   }>;
 };
 
+type RewriterEl = {
+  getAttribute(name: string): string | null;
+  setAttribute(name: string, value: string): void;
+  removeAttribute(name: string): void;
+  getAttributeNames?: () => string[];
+  tagName?: string;
+  remove?: () => void;
+};
+
 function parseBestSrcFromSrcset(srcset: string) {
   const candidates = srcset
     .split(",")
@@ -49,8 +58,11 @@ async function pruneHtml(html: string) {
     "#share-bar-above",
     "#share-bar-below",
     "div#ad-container",
+    "button",
+    "hr",
     "[data-test-ui='article-sidebar-bottom']",
     "#article-RHRLatestfrom",
+    "[data-test-ui='author--information'] img",
     "[data-test-ui='follow-authors-skeleton']",
     "div[data-test-ui='author-role-distributor-container']",
     "div[data-test-ui='nzh-premium-badge']",
@@ -60,7 +72,7 @@ async function pruneHtml(html: string) {
 
   const rewriter = new HTMLRewriter()
     .on("img, source", {
-      element(el: any) {
+      element(el: RewriterEl) {
         const dataSrcset = el.getAttribute("data-srcset");
         const dataSrc = el.getAttribute("data-src");
 
@@ -81,7 +93,7 @@ async function pruneHtml(html: string) {
       },
     })
     .on("*", {
-      element(el: any) {
+      element(el: RewriterEl) {
         el.removeAttribute("class");
         el.removeAttribute("id");
 
@@ -111,8 +123,8 @@ async function pruneHtml(html: string) {
 
   for (const sel of selectorsToRemove) {
     rewriter.on(sel, {
-      element(el: any) {
-        el.remove();
+      element(el: RewriterEl) {
+        el.remove?.();
       },
     });
   }
@@ -126,6 +138,33 @@ async function pruneHtml(html: string) {
   // Use a simple regex-based cleanup to strip empty tags not containing media content.
   const cleaned = inner.replace(/<([a-zA-Z0-9-]+)([^>]*)>\s*<\/\1>/g, (_m, tag) => {
     return mediaTags.has(tag.toLowerCase()) ? _m : "";
+  });
+
+  // keep the action bar contents but strip its border/margin/padding styles
+  rewriter.on("section[data-test-ui='article__action-bar']", {
+    element(el: RewriterEl) {
+      const style = el.getAttribute("style") ?? "";
+      // remove border and top spacing, preserve other styles, then enforce bottom margin
+      let cleanedStyle = String(style)
+        .replace(/border[^;]*;?/gi, "")
+        .replace(/margin-top[^;]*;?/gi, "")
+        .replace(/padding-top[^;]*;?/gi, "")
+        .replace(/;{2,}/g, ";")
+        .replace(/^;|;$/g, "")
+        .trim();
+
+      // ensure there's a bottom margin
+      const hasMarginBottom = /margin-bottom\s*:/i.test(cleanedStyle);
+      if (!hasMarginBottom) {
+        cleanedStyle = (cleanedStyle ? cleanedStyle + ";" : "") + "margin-bottom:1rem";
+      }
+
+      if (cleanedStyle) {
+        el.setAttribute("style", cleanedStyle);
+      } else {
+        el.removeAttribute("style");
+      }
+    },
   });
 
   return cleaned.trim();
@@ -171,7 +210,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
         images: image ? [image] : undefined,
       },
     };
-  } catch (error) {
+  } catch {
     return {
       title: "NZ Herald Article",
     };
