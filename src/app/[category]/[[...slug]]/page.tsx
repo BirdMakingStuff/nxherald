@@ -1,4 +1,5 @@
 import { JSDOM } from "jsdom";
+import type { Metadata } from "next";
 
 type PageProps = {
   params: Promise<{
@@ -110,6 +111,53 @@ function pruneHtml(html: string) {
   }
 
   return document.body.innerHTML.trim();
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const resolvedParams = await params;
+  const slug = resolvedParams.slug ?? [];
+  const url = `https://nzherald.co.nz/${resolvedParams.category}/${slug.join("/")}`;
+
+  try {
+    const html = await fetch(url).then((res) => res.text());
+
+    // Extract title
+    const titleMatch = html.match(/<h1\b[^>]*data-test-ui="article__heading"[^>]*>([^<]+)<\/h1>/i);
+    const title = titleMatch?.[1]?.trim() ?? "";
+
+    // Extract description (first paragraph)
+    const descMatch = html.match(/<p\b[^>]*>([^<]+)<\/p>/i);
+    const description = descMatch?.[1]?.trim() || "";
+
+    // Extract image from srcset
+    const imgMatch = html.match(/data-srcset="([^"]+)"/);
+    let image = "";
+    if (imgMatch) {
+      image = parseBestSrcFromSrcset(imgMatch[1]);
+    }
+
+    return {
+      title,
+      description,
+      openGraph: {
+        title,
+        description,
+        url,
+        type: "article",
+        images: image ? [{ url: image }] : undefined,
+      },
+      twitter: {
+        card: "summary_large_image",
+        title,
+        description,
+        images: image ? [image] : undefined,
+      },
+    };
+  } catch (error) {
+    return {
+      title: "NZ Herald Article",
+    };
+  }
 }
 
 export default async function ArticlePage({ params }: PageProps) {
