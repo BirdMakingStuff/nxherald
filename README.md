@@ -1,17 +1,12 @@
-# OpenNext Starter
-
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
-
-## Getting Started
-
-Read the documentation at https://opennext.js.org/cloudflare.
+# The Northern Express Herald
+Because we generate so much Premium value that don't deserve to be trickled down to the proletariat.
 
 ## Develop
 
 Run the Next.js development server:
 
 ```bash
-npm run dev
+bun run dev
 # or similar package manager command
 ```
 
@@ -24,7 +19,7 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 Preview the application locally on the Cloudflare runtime:
 
 ```bash
-npm run preview
+bun run preview
 # or similar package manager command
 ```
 
@@ -33,15 +28,6 @@ npm run preview
 Deploy the application to Cloudflare:
 
 ```bash
-npm run deploy
+bun run deploy
 # or similar package manager command
 ```
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
