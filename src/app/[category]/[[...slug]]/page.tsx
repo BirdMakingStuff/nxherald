@@ -58,6 +58,7 @@ async function pruneHtml(html: string) {
     "#share-bar-above",
     "#share-bar-below",
     "div#ad-container",
+    "div[data-test-ui='ad']",
     "button",
     "hr",
     "[data-test-ui='article-sidebar-bottom']",
@@ -178,19 +179,39 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   try {
     const html = await fetch(url).then((res) => res.text());
 
-    // Extract title
+    // Extract title from raw HTML (heading is reliable there)
     const titleMatch = html.match(/<h1\b[^>]*data-test-ui="article__heading"[^>]*>([^<]+)<\/h1>/i);
     const title = titleMatch?.[1]?.trim() ?? "";
 
-    // Extract description (first paragraph)
-    const descMatch = html.match(/<p\b[^>]*>([^<]+)<\/p>/i);
-    const description = descMatch?.[1]?.trim() || "";
+    // Extract article HTML, prune it, then derive description and image from the cleaned output
+    const articleMatch = html.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i);
+    const articleHtml = articleMatch?.[1] ?? "";
+    const cleaned = articleHtml ? await pruneHtml(articleHtml) : "";
 
-    // Extract image from srcset
-    const imgMatch = html.match(/data-srcset="([^"]+)"/);
+    // Description: first paragraph from the cleaned HTML (strip tags)
+    let description = "";
+    const descMatch = cleaned.match(/<p\b[^>]*>([\s\S]*?)<\/p>/i);
+    if (descMatch) {
+      description = descMatch[1].replace(/<[^>]+>/g, "").trim();
+    } else {
+      // fallback to raw HTML first paragraph
+      const rawDescMatch = html.match(/<p\b[^>]*>([^<]+)<\/p>/i);
+      description = rawDescMatch?.[1]?.trim() || "";
+    }
+
+    // Image: prefer an <img src> in the cleaned HTML, then srcset, then fall back to raw data-srcset
     let image = "";
-    if (imgMatch) {
-      image = parseBestSrcFromSrcset(imgMatch[1]);
+    const imgSrcMatch = cleaned.match(/<img\b[^>]*\bsrc=["']([^"']+)["']/i);
+    if (imgSrcMatch) {
+      image = imgSrcMatch[1];
+    } else {
+      const srcsetMatch = cleaned.match(/<img\b[^>]*\bsrcset=["']([^"']+)["']/i) || cleaned.match(/<source\b[^>]*\bsrcset=["']([^"']+)["']/i);
+      if (srcsetMatch) {
+        image = parseBestSrcFromSrcset(srcsetMatch[1]);
+      } else {
+        const rawImgMatch = html.match(/data-srcset="([^"]+)"/);
+        if (rawImgMatch) image = parseBestSrcFromSrcset(rawImgMatch[1]);
+      }
     }
 
     return {
@@ -212,7 +233,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     };
   } catch {
     return {
-      title: "NZ Herald Article",
+      title: "Article",
     };
   }
 }
