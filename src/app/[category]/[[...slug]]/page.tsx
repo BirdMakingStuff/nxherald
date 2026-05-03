@@ -120,6 +120,35 @@ async function pruneHtml(html: string) {
           }
         }
       },
+    })
+    .on("a", {
+      element(el: RewriterEl) {
+        const href = el.getAttribute("href");
+        if (!href) return;
+
+        // Rewrite absolute nzherald links (including protocol-relative) to site-relative paths
+        const nzHostRegex = /^(?:https?:)?\/\/(?:www\.)?nzherald\.co\.nz/i;
+
+        // skip non-http links and fragments/mailto
+        if (/^mailto:|^tel:|^javascript:/i.test(href) || href.startsWith('#')) return;
+
+        let newHref = href;
+
+        if (nzHostRegex.test(href)) {
+          // strip the host (leaves path and query)
+          newHref = href.replace(nzHostRegex, '');
+          if (!newHref.startsWith('/')) newHref = '/' + newHref;
+        } else if (href.startsWith('/')) {
+          // already a site-root-relative path; keep as-is
+          newHref = href;
+        } else {
+          // not a nzherald or root-relative link — leave it alone
+          return;
+        }
+
+        el.setAttribute('href', newHref);
+        el.setAttribute('rel', 'noopener noreferrer');
+      },
     });
 
   for (const sel of selectorsToRemove) {
