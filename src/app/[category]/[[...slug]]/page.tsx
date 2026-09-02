@@ -200,6 +200,14 @@ async function pruneHtml(html: string) {
   return cleaned.trim();
 }
 
+// The hero image is not present as an <img> in the server-rendered HTML
+// (NZ Herald injects it client-side), so pull it from the embedded ogImage field.
+function extractHeroImage(html: string): string {
+	const ogImageMatch = html.match(/"ogImage":"([^"]+)"/);
+	if (!ogImageMatch) return "";
+	return ogImageMatch[1].replace(/\\u002F/gi, "/").trim();
+}
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const resolvedParams = await params;
   const slug = resolvedParams.slug ?? [];
@@ -276,6 +284,7 @@ export default async function ArticlePage({ params }: PageProps) {
   const article = articleMatch?.[1] ?? "";
 
   const cleanedArticle = article ? await pruneHtml(article) : "";
+  const heroImage = extractHeroImage(html);
 
   return (
     <main className="news-page min-h-screen bg-[linear-gradient(180deg,#f7f4ee_0%,#f0ebe4_100%)] px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
@@ -284,6 +293,17 @@ export default async function ArticlePage({ params }: PageProps) {
           <span className="text-sm font-semibold uppercase text-neutral-500 font-serif">The Northern Express Herald</span>
         </div>
         <div className="px-5 py-6 sm:px-8 lg:px-12 lg:py-10">
+          {heroImage ? (
+            <figure className="mx-0 my-0 sm:mx-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={heroImage}
+                alt=""
+                data-test-ui="article-media__image"
+                className="block w-full rounded-xl"
+              />
+            </figure>
+          ) : null}
           {cleanedArticle ? (
             <div dangerouslySetInnerHTML={{ __html: cleanedArticle }} />
           ) : (
