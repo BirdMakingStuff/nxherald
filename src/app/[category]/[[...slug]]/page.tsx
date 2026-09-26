@@ -19,6 +19,14 @@ type RewriterEl = {
   remove?: () => void;
 };
 
+type CoverImage = {
+  src: string;
+  alt: string;
+};
+
+// NZ Herald serves a generic promo image on pages that are not stories.
+const PLACEHOLDER_IMAGE = /\/pf\/resources\/images\//i;
+
 function parseBestSrcFromSrcset(srcset: string) {
   const candidates = srcset
     .split(",")
@@ -50,7 +58,82 @@ function parseBestSrcFromSrcset(srcset: string) {
   return best.url;
 }
 
-async function pruneHtml(html: string) {
+// Pulls a string field out of the story object NZ Herald embeds in the page.
+function readJsonString(source: string, key: string) {
+  const match = new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`).exec(source);
+
+  if (!match) return "";
+
+  try {
+    return JSON.parse(`"${match[1]}"`) as string;
+  } catch {
+    return "";
+  }
+}
+
+function decodeUrl(value: string) {
+  return value.replace(/&amp;/g, "&").replace(/\\u002F/gi, "/").trim();
+}
+
+// The cover image is not present as an <img> in the server-rendered article
+// markup (NZ Herald hydrates it client-side), so take it from the page's own
+// metadata: the <meta property="og:image"> tag, then the embedded story object.
+function resolveCoverImage(html: string): CoverImage {
+  const metaTag = html.match(/<meta[^>]*property=["']og:image["'][^>]*>/i);
+  const metaSrc = metaTag?.[0] ? decodeUrl(/content=["']([^"']*)["']/i.exec(metaTag[0])?.[1] ?? "") : "";
+  const src = metaSrc || decodeUrl(readJsonString(html, "ogImage"));
+
+  if (!src || PLACEHOLDER_IMAGE.test(src)) {
+    return { src: "", alt: "" };
+  }
+
+  return { src, alt: readJsonString(html, "ogImageAlt").replace(/\s+/g, " ").trim() };
+}
+
+// Every rendition of a photo shares one resizer asset id, so two URLs carrying
+// the same id are the same image at different sizes.
+function imageAssetId(url: string) {
+  return /\/v2\/([A-Z0-9]{8,})/i.exec(url)?.[1] ?? "";
+}
+
+function escapeAttribute(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function coverImageTag(cover: CoverImage) {
+  return `<img src="${escapeAttribute(cover.src)}" alt="${escapeAttribute(cover.alt)}" data-test-ui="article-media__image" fetchpriority="high" />`;
+}
+
+function coverFigure(cover: CoverImage) {
+  return `<figure data-test-ui="hero-figure">${coverImageTag(cover)}</figure>`;
+}
+
+// Photo stories repeat the hero caption in a paragraph straight after the header,
+// while video stories only carry it inside the hero figure. Drop the stray copy
+// so the caption stays with the image and is only rendered once.
+function dropDuplicateHeroCaption(articleHtml: string) {
+  const strayCaption = /<\/header>\s*<p[^>]*data-test-ui=["']figure__caption["'][^>]*>[\s\S]*?<\/p>/i.exec(articleHtml);
+
+  return strayCaption ? articleHtml.replace(strayCaption[0], "</header>") : articleHtml;
+}
+
+// Puts the cover in the hero slot when the layout has one, keeping the caption
+// the slot already carries. Layouts without a slot get the cover up front.
+function insertCoverImage(articleHtml: string, cover: CoverImage) {
+  const heroFigure = /<figure[^>]*data-test-ui=["']hero-figure["'][^>]*>[\s\S]*?<\/figure>/i.exec(articleHtml);
+
+  if (!heroFigure) return coverFigure(cover) + articleHtml;
+
+  const opened = heroFigure[0].replace(/^(<figure[^>]*>)/i, `$1${coverImageTag(cover)}`);
+
+  return articleHtml.replace(heroFigure[0], opened);
+}
+
+async function pruneHtml(html: string, cover: CoverImage) {
 
   const mediaTags = new Set(["audio", "figure", "img", "picture", "video"]);
 
@@ -68,10 +151,24 @@ async function pruneHtml(html: string) {
     "div[data-test-ui='author-role-distributor-container']",
     "div[data-test-ui='nzh-premium-badge']",
     "div[data-test-ui='author-meta-container']",
-    "div[data-test-ui='hero-container']",
   ];
 
+  // The hero slot is always empty in the server-rendered markup, so it is where
+  // the cover image belongs: below the headline, above the body. Layouts without
+  // a hero slot (big reads, sponsored, puzzles) render the cover themselves, and
+  // adding it again here would show the same photo twice.
+  const hasHeroSlot = /data-test-ui=["']hero-container["']/i.test(html);
+  const coverAssetId = imageAssetId(cover.src);
+  const coverAlreadyShown = Boolean(coverAssetId) && html.includes(coverAssetId);
+  const showCover = Boolean(cover.src) && (hasHeroSlot || !coverAlreadyShown);
+
   const rewriter = new HTMLRewriter()
+    .on("div[data-test-ui='hero-container']", {
+      element(el: RewriterEl) {
+        // Nothing to put in the slot, so drop it rather than leave a gap.
+        if (!showCover) el.remove?.();
+      },
+    })
     .on("img, source", {
       element(el: RewriterEl) {
         const dataSrcset = el.getAttribute("data-srcset");
@@ -166,9 +263,14 @@ async function pruneHtml(html: string) {
 
   // As a final pass: remove elements that are empty (no text and not media).
   // Use a simple regex-based cleanup to strip empty tags not containing media content.
-  const cleaned = inner.replace(/<([a-zA-Z0-9-]+)([^>]*)>\s*<\/\1>/g, (_m, tag) => {
+  let cleaned = inner.replace(/<([a-zA-Z0-9-]+)([^>]*)>\s*<\/\1>/g, (_m, tag) => {
     return mediaTags.has(tag.toLowerCase()) ? _m : "";
   });
+
+  if (showCover) {
+    cleaned = insertCoverImage(cleaned, cover);
+    cleaned = dropDuplicateHeroCaption(cleaned);
+  }
 
   // keep the action bar contents but strip its border/margin/padding styles
   rewriter.on("section[data-test-ui='article__action-bar']", {
@@ -200,14 +302,6 @@ async function pruneHtml(html: string) {
   return cleaned.trim();
 }
 
-// The hero image is not present as an <img> in the server-rendered HTML
-// (NZ Herald injects it client-side), so pull it from the embedded ogImage field.
-function extractHeroImage(html: string): string {
-	const ogImageMatch = html.match(/"ogImage":"([^"]+)"/);
-	if (!ogImageMatch) return "";
-	return ogImageMatch[1].replace(/\\u002F/gi, "/").trim();
-}
-
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const resolvedParams = await params;
   const slug = resolvedParams.slug ?? [];
@@ -223,7 +317,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     // Extract article HTML, prune it, then derive description and image from the cleaned output
     const articleMatch = html.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i);
     const articleHtml = articleMatch?.[1] ?? "";
-    const cleaned = articleHtml ? await pruneHtml(articleHtml) : "";
+    const cleaned = articleHtml ? await pruneHtml(articleHtml, resolveCoverImage(html)) : "";
 
     // Description: first paragraph from the cleaned HTML (strip tags)
     let description = "";
@@ -236,20 +330,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       description = rawDescMatch?.[1]?.trim() || "";
     }
 
-    // Image: prefer an <img src> in the cleaned HTML, then srcset, then fall back to raw data-srcset
-    let image = "";
-    const imgSrcMatch = cleaned.match(/<img\b[^>]*\bsrc=["']([^"']+)["']/i);
-    if (imgSrcMatch) {
-      image = imgSrcMatch[1];
-    } else {
-      const srcsetMatch = cleaned.match(/<img\b[^>]*\bsrcset=["']([^"']+)["']/i) || cleaned.match(/<source\b[^>]*\bsrcset=["']([^"']+)["']/i);
-      if (srcsetMatch) {
-        image = parseBestSrcFromSrcset(srcsetMatch[1]);
-      } else {
-        const rawImgMatch = html.match(/data-srcset="([^"]+)"/);
-        if (rawImgMatch) image = parseBestSrcFromSrcset(rawImgMatch[1]);
-      }
-    }
+    // Social image: the story's cover, falling back to the first image in the body.
+    const cover = resolveCoverImage(html);
+    const image = cover.src || cleaned.match(/<img\b[^>]*\bsrc=["']([^"']+)["']/i)?.[1] || "";
 
     return {
       title,
@@ -259,7 +342,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
         description,
         url,
         type: "article",
-        images: image ? [{ url: image }] : undefined,
+        images: image ? [{ url: image, alt: cover.alt }] : undefined,
       },
       twitter: {
         card: "summary_large_image",
@@ -283,8 +366,7 @@ export default async function ArticlePage({ params }: PageProps) {
   const articleMatch = html.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i);
   const article = articleMatch?.[1] ?? "";
 
-  const cleanedArticle = article ? await pruneHtml(article) : "";
-  const heroImage = extractHeroImage(html);
+  const cleanedArticle = article ? await pruneHtml(article, resolveCoverImage(html)) : "";
 
   return (
     <main className="news-page min-h-screen bg-[linear-gradient(180deg,#f7f4ee_0%,#f0ebe4_100%)] px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
@@ -293,17 +375,6 @@ export default async function ArticlePage({ params }: PageProps) {
           <span className="text-sm font-semibold uppercase text-neutral-500 font-serif">The Northern Express Herald</span>
         </div>
         <div className="px-5 py-6 sm:px-8 lg:px-12 lg:py-10">
-          {heroImage ? (
-            <figure className="mx-0 my-0 sm:mx-0">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={heroImage}
-                alt=""
-                data-test-ui="article-media__image"
-                className="block w-full rounded-xl"
-              />
-            </figure>
-          ) : null}
           {cleanedArticle ? (
             <div dangerouslySetInnerHTML={{ __html: cleanedArticle }} />
           ) : (

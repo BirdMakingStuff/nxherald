@@ -102,8 +102,8 @@ body {
 	margin: 1.75rem 0;
 }
 
-.news-article [data-test-ui="article-media"] figure,
-.news-article figure {
+/* the hero slot already carries the spacing */
+.news-article [data-test-ui="hero-container"] figure {
 	margin: 0;
 }
 
