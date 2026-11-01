@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useState } from "react";
 
 function parseInputToPath(input: string): string | null {
@@ -37,7 +38,7 @@ export default function Home() {
 		<main className="news-page min-h-screen bg-[linear-gradient(180deg,#f7f4ee_0%,#f0ebe4_100%)] px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
 			<section className="mx-auto max-w-4xl overflow-hidden rounded-4xl border border-black/10 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
 				<div className="border-b border-black/10 bg-neutral-50 px-5 py-4 sm:px-8">
-					<span className="text-sm font-semibold uppercase text-neutral-500 font-serif">The Northern Express Herald</span>
+					<Link href="/" className="text-sm font-semibold uppercase text-neutral-500 font-serif no-underline hover:text-neutral-700">The Northern Express Herald</Link>
 				</div>
 				<form onSubmit={handleSubmit} className="px-5 py-6 sm:px-8 lg:px-12 lg:py-10">
 					<input

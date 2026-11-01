@@ -382,6 +382,17 @@ body {
 	text-underline-offset: 0.14em;
 }
 
+/* The masthead is part of the article shell, so it needs to opt out of the
+   body-link colour above. */
+.news-article a.masthead-link {
+	color: #737373;
+	text-decoration: none;
+}
+
+.news-article a.masthead-link:hover {
+	color: #404040;
+}
+
 .news-article figure {
 	margin: 1.75rem 0;
 }

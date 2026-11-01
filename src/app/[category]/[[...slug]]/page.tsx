@@ -1,5 +1,14 @@
 import { HTMLRewriter } from 'htmlrewriter'
 import type { Metadata } from "next";
+import Link from "next/link";
+import { isListingPage, parseListing, readListingMetadata } from "@/lib/listing";
+import {
+  imageAssetId,
+  imageRewriteHandler,
+  linkRewriteHandler,
+  type RewriterEl,
+} from "@/lib/rewrite";
+import ListingView from "./listing-view";
 
 export const runtime = 'nodejs';
 
@@ -10,15 +19,6 @@ type PageProps = {
   }>;
 };
 
-type RewriterEl = {
-  getAttribute(name: string): string | null;
-  setAttribute(name: string, value: string): void;
-  removeAttribute(name: string): void;
-  getAttributeNames?: () => string[];
-  tagName?: string;
-  remove?: () => void;
-};
-
 type CoverImage = {
   src: string;
   alt: string;
@@ -26,37 +26,6 @@ type CoverImage = {
 
 // NZ Herald serves a generic promo image on pages that are not stories.
 const PLACEHOLDER_IMAGE = /\/pf\/resources\/images\//i;
-
-function parseBestSrcFromSrcset(srcset: string) {
-  const candidates = srcset
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter(Boolean)
-    .map((entry) => {
-      const [url, descriptor] = entry.split(/\s+/, 2);
-      const widthMatch = descriptor?.match(/(\d+)w$/i);
-
-      return {
-        url,
-        width: widthMatch ? Number.parseInt(widthMatch[1], 10) : 0,
-      };
-    })
-    .filter((candidate) => candidate.url);
-
-  if (!candidates.length) {
-    return "";
-  }
-
-  const best = candidates.reduce((currentBest, candidate) => {
-    if (candidate.width > currentBest.width) {
-      return candidate;
-    }
-
-    return currentBest;
-  });
-
-  return best.url;
-}
 
 // Pulls a string field out of the story object NZ Herald embeds in the page.
 function readJsonString(source: string, key: string) {
@@ -99,12 +68,6 @@ function resolveCoverImage(html: string): CoverImage {
     src: decodeUrl(fallback[1]),
     alt: (/<img\b[^>]*\balt=["']([^"']*)["'][^>]*>/i.exec(fallback[0])?.[1] ?? "").replace(/\s+/g, " ").trim(),
   };
-}
-
-// Every rendition of a photo shares one resizer asset id, so two URLs carrying
-// the same id are the same image at different sizes.
-function imageAssetId(url: string) {
-  return /\/v2\/([A-Z0-9]{8,})/i.exec(url)?.[1] ?? "";
 }
 
 function escapeAttribute(value: string) {
@@ -179,27 +142,7 @@ async function pruneHtml(html: string, cover: CoverImage) {
         if (!showCover) el.remove?.();
       },
     })
-    .on("img, source", {
-      element(el: RewriterEl) {
-        const dataSrcset = el.getAttribute("data-srcset");
-        const dataSrc = el.getAttribute("data-src");
-
-        if (dataSrcset && !el.getAttribute("srcset")) {
-          el.setAttribute("srcset", dataSrcset);
-        }
-
-        if (dataSrc && !el.getAttribute("src")) {
-          el.setAttribute("src", dataSrc);
-        }
-
-        const srcset = el.getAttribute("srcset") ?? "";
-        const bestSrc = parseBestSrcFromSrcset(srcset);
-
-        if (bestSrc && String(el.tagName).toLowerCase() === "img") {
-          el.setAttribute("src", bestSrc);
-        }
-      },
-    })
+    .on("img, source", { element: imageRewriteHandler })
     .on("*", {
       element(el: RewriterEl) {
         el.removeAttribute("class");
@@ -228,35 +171,7 @@ async function pruneHtml(html: string, cover: CoverImage) {
         }
       },
     })
-    .on("a", {
-      element(el: RewriterEl) {
-        const href = el.getAttribute("href");
-        if (!href) return;
-
-        // Rewrite absolute nzherald links (including protocol-relative) to site-relative paths
-        const nzHostRegex = /^(?:https?:)?\/\/(?:www\.)?nzherald\.co\.nz/i;
-
-        // skip non-http links and fragments/mailto
-        if (/^mailto:|^tel:|^javascript:/i.test(href) || href.startsWith('#')) return;
-
-        let newHref = href;
-
-        if (nzHostRegex.test(href)) {
-          // strip the host (leaves path and query)
-          newHref = href.replace(nzHostRegex, '');
-          if (!newHref.startsWith('/')) newHref = '/' + newHref;
-        } else if (href.startsWith('/')) {
-          // already a site-root-relative path; keep as-is
-          newHref = href;
-        } else {
-          // not a nzherald or root-relative link — leave it alone
-          return;
-        }
-
-        el.setAttribute('href', newHref);
-        el.setAttribute('rel', 'noopener noreferrer');
-      },
-    });
+    .on("a", { element: linkRewriteHandler });
 
   for (const sel of selectorsToRemove) {
     rewriter.on(sel, {
@@ -324,6 +239,28 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   try {
     const html = await fetch(url).then((res) => res.text());
 
+    if (isListingPage(html)) {
+      const listing = readListingMetadata(html);
+
+      return {
+        title: listing.title,
+        description: listing.description,
+        openGraph: {
+          title: listing.title,
+          description: listing.description,
+          url,
+          type: "website",
+          images: listing.image ? [{ url: listing.image }] : undefined,
+        },
+        twitter: {
+          card: "summary_large_image",
+          title: listing.title,
+          description: listing.description,
+          images: listing.image ? [listing.image] : undefined,
+        },
+      };
+    }
+
     // Extract title from raw HTML (heading is reliable there)
     const titleMatch = html.match(/<h1\b[^>]*data-test-ui="article__heading"[^>]*>([^<]+)<\/h1>/i);
     const title = titleMatch?.[1]?.trim() ?? "";
@@ -377,6 +314,15 @@ export default async function ArticlePage({ params }: PageProps) {
   const slug = resolvedParams.slug ?? [];
 
   const html = await fetch(`https://nzherald.co.nz/${resolvedParams.category}/${slug.join("/")}`).then((res) => res.text());
+
+  if (isListingPage(html)) {
+    const listing = await parseListing(html);
+
+    if (listing) {
+      return <ListingView listing={listing} />;
+    }
+  }
+
   const articleMatch = html.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i);
   const article = articleMatch?.[1] ?? "";
 
@@ -386,7 +332,7 @@ export default async function ArticlePage({ params }: PageProps) {
     <main className="news-page min-h-screen bg-[linear-gradient(180deg,#f7f4ee_0%,#f0ebe4_100%)] px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
       <article className="news-article mx-auto max-w-4xl overflow-hidden rounded-4xl border border-black/10 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
         <div className="border-b border-black/10 bg-neutral-50 px-5 py-4 sm:px-8">
-          <span className="text-sm font-semibold uppercase text-neutral-500 font-serif">The Northern Express Herald</span>
+          <Link href="/" className="masthead-link text-sm font-semibold uppercase text-neutral-500 font-serif no-underline hover:text-neutral-700">The Northern Express Herald</Link>
         </div>
         <div className="px-5 py-6 sm:px-8 lg:px-12 lg:py-10">
           {cleanedArticle ? (
