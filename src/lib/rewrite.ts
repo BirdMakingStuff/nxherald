@@ -23,10 +23,18 @@ export function parseBestSrcFromSrcset(srcset: string) {
 		.map((entry) => {
 			const [url, descriptor] = entry.split(/\s+/, 2);
 			const widthMatch = descriptor?.match(/(\d+)w$/i);
+			const descriptorWidth = widthMatch ? Number.parseInt(widthMatch[1], 10) : 0;
+			// The width descriptor describes the viewport the rendition is used
+			// at, not the image's real size: NZ Herald reuses a 296px asset for
+			// its 1536w slot because the card is small at that breakpoint. Prefer
+			// the largest actual resizer width so we don't start from a thumbnail.
+			const resizerWidth = /\/resizer\/v2\//i.test(url)
+				? Number.parseInt(/[?&]width=(\d+)/i.exec(url)?.[1] ?? "0", 10)
+				: 0;
 
 			return {
 				url,
-				width: widthMatch ? Number.parseInt(widthMatch[1], 10) : 0,
+				width: resizerWidth || descriptorWidth,
 			};
 		})
 		.filter((candidate) => candidate.url);
@@ -38,6 +46,23 @@ export function parseBestSrcFromSrcset(srcset: string) {
 	return candidates.reduce((currentBest, candidate) =>
 		candidate.width > currentBest.width ? candidate : currentBest,
 	).url;
+}
+
+// Ask the NZ Herald resizer for a rendition that matches how large we actually
+// draw the image. The auth token is not tied to the dimensions, so changing
+// width/height is enough to get a sharp crop from the original asset.
+export function resizeResizerImage(url: string, width: number, height: number) {
+	if (!/\/resizer\/v2\//i.test(url)) return url;
+
+	const widthMatch = /[?&]width=(\d+)/i.exec(url);
+	const heightMatch = /[?&]height=(\d+)/i.exec(url);
+
+	if (!widthMatch || !heightMatch) return url;
+	if (Number.parseInt(widthMatch[1], 10) >= width) return url;
+
+	return url
+		.replace(/([?&]width=)\d+/i, `$1${width}`)
+		.replace(/([?&]height=)\d+/i, `$1${height}`);
 }
 
 // NZ Herald ships lazy images: the real source sits in data-src/data-srcset.

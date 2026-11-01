@@ -4,6 +4,7 @@ import type {
 	ListingPaginationItem,
 	ListingStory,
 } from "@/lib/listing";
+import { resizeResizerImage } from "@/lib/rewrite";
 
 function linkProps(href: string) {
 	const external = /^(?:https?:)?\/\//i.test(href);
@@ -60,7 +61,7 @@ function StoryCard({ story }: { story: ListingStory }) {
 					aria-hidden="true"
 				>
 					<img
-						src={story.image}
+						src={resizeResizerImage(story.image, 800, 450)}
 						alt=""
 						loading="lazy"
 						decoding="async"
@@ -111,7 +112,7 @@ function CompactCard({ story }: { story: ListingStory }) {
 					aria-hidden="true"
 				>
 					<img
-						src={story.image}
+						src={resizeResizerImage(story.image, 400, 300)}
 						alt=""
 						loading="lazy"
 						decoding="async"
@@ -150,7 +151,7 @@ function HeroCard({ story }: { story: ListingStory }) {
 			<a {...linkProps(story.href)} className="relative flex h-full min-h-[20rem] flex-col justify-end sm:min-h-[24rem]">
 				{story.image ? (
 					<img
-						src={story.image}
+						src={resizeResizerImage(story.image, 1400, 800)}
 						alt=""
 						fetchPriority="high"
 						decoding="async"
