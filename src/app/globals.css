@@ -52,6 +52,298 @@ body {
 	margin-bottom: 1rem;
 }
 
+/* ---------- Article title + byline ---------- */
+
+.news-article [data-test-ui="article__heading"],
+.news-article [data-test-ui="article-bigread-v2__heading"],
+.news-article [data-test-ui="article-sponsored__header"] h1 {
+	font-family: Georgia, "Times New Roman", serif;
+	margin: 0.25rem 0 0.75rem;
+	font-size: clamp(2.1rem, 4.6vw, 3.5rem);
+	line-height: 1.04;
+	letter-spacing: -0.035em;
+	text-wrap: balance;
+	color: #0b1220;
+}
+
+.news-article [data-test-ui="article__header-info"] {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 0.75rem;
+}
+
+.news-article [data-test-ui="breadcrumbs"] {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.4rem;
+	font-size: 0.72rem;
+	font-weight: 600;
+	line-height: 1.4;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: #6b7280;
+}
+
+.news-article [data-test-ui="breadcrumbs"] a {
+	color: inherit;
+	text-decoration: none;
+}
+
+.news-article [data-test-ui="breadcrumbs"] a:hover {
+	color: #111827;
+	text-decoration: underline;
+	text-underline-offset: 0.18em;
+}
+
+.news-article [data-test-ui="breadcrumbs"] span {
+	color: #b1b8c4;
+	font-weight: 400;
+}
+
+.news-article [data-test-ui="breadcrumb-with-badges"] {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.75rem;
+}
+
+/* The "Opinion" kicker next to the breadcrumbs has no test hook of its own. */
+.news-article [data-test-ui="breadcrumb-with-badges"] > div:not([data-test-ui]) {
+	font-size: 0.68rem;
+	font-weight: 700;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: #9f1239;
+}
+
+.news-article [data-test-ui="article__action-bar"] {
+	align-self: stretch;
+	width: 100%;
+	margin: 1rem 0 0;
+	padding: 0;
+	border: 0;
+}
+
+.news-article [data-test-ui="article__action-bar"] > div > section {
+	padding: 0.85rem 1rem;
+	border: 1px solid rgba(15, 23, 42, 0.08);
+	border-radius: 0.9rem;
+	background: #f8fafc;
+}
+
+.news-article [data-test-ui="author--information"] {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+}
+
+.news-article [data-test-ui="author--information"] > div:last-child {
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
+}
+
+/* "Opinion by" label, which sits above the author name in opinion pieces. */
+.news-article [data-test-ui="author--information"] > div:last-child > div:not([data-test-ui]):first-child {
+	font-size: 0.66rem;
+	font-weight: 700;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: #9f1239;
+}
+
+.news-article [data-test-ui="author--details__image"] {
+	width: 2.75rem;
+	height: 2.75rem;
+	border-radius: 9999px;
+	object-fit: cover;
+}
+
+/* Opinion pieces use an empty logo slot instead of a photo. */
+.news-article [data-test-ui="nzh--author--logo"] {
+	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	justify-content: center;
+	width: 2.75rem;
+	height: 2.75rem;
+	border-radius: 9999px;
+	background: #0f172a;
+	color: #ffffff;
+	font-family: Georgia, "Times New Roman", serif;
+	font-size: 0.68rem;
+	font-weight: 700;
+	letter-spacing: 0.02em;
+}
+
+.news-article [data-test-ui="nzh--author--logo"]::before {
+	content: "NZH";
+}
+
+.news-article [data-test-ui="nzh--author--logo"] > span {
+	display: none;
+}
+
+.news-article [data-test-ui="author--information-bio"] {
+	margin-top: 0.7rem;
+	padding-top: 0.7rem;
+	border-top: 1px solid rgba(15, 23, 42, 0.07);
+	font-size: 0.8rem;
+	line-height: 1.55;
+	color: #64748b;
+}
+
+.news-article [data-test-ui="author--text--body"] {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 0.4rem;
+}
+
+.news-article [data-test-ui="author--name"] {
+	font-size: 1.02rem;
+	font-weight: 700;
+	line-height: 1.3;
+	color: #0f172a;
+}
+
+.news-article [data-test-ui="author--name"] a,
+.news-article [data-test-ui="author--link"] {
+	color: inherit;
+	text-decoration: none;
+}
+
+.news-article [data-test-ui="author--name"] a::before {
+	content: "By ";
+	font-weight: 500;
+	color: #6b7280;
+}
+
+.news-article [data-test-ui="author--name"] a:hover {
+	text-decoration: underline;
+	text-underline-offset: 0.18em;
+}
+
+.news-article [data-test-ui="syndicator--name"] {
+	font-size: 0.9rem;
+	color: #6b7280;
+}
+
+/* ---------- Cover image ---------- */
+
+.news-article [data-test-ui="hero-container"] {
+	margin: 1.5rem 0 2rem;
+}
+
+.news-article [data-test-ui="hero-figure"] {
+	margin: 0;
+	overflow: hidden;
+	border-radius: 1rem;
+	background: #f3f4f6;
+}
+
+.news-article [data-test-ui="hero-figure"] > img,
+.news-article [data-test-ui="hero-figure"] picture img {
+	margin: 0;
+	width: 100%;
+	aspect-ratio: 16 / 9;
+	object-fit: cover;
+}
+
+.news-article [data-test-ui="hero-figure"] figcaption {
+	margin: 0;
+	padding: 0.7rem 1rem;
+	border-top: 1px solid rgba(15, 23, 42, 0.06);
+	background: #f8fafc;
+	font-size: 0.82rem;
+	line-height: 1.5;
+	color: #64748b;
+}
+
+.news-article [data-test-ui="article-sponsored-media-wrapper"],
+.news-article [data-test-ui="article-bigread-v2__header"] {
+	margin: 1.5rem 0 2rem;
+}
+
+.news-article [data-test-ui="article-sponsored-media-wrapper"] img,
+.news-article [data-test-ui="article-bigread-v2__header"] img {
+	border-radius: 1rem;
+}
+
+/* Sponsored and standard layouts don't share a breadcrumb wrapper, so style
+   the links themselves. */
+.news-article a[data-test-ui="breadcrumb-home"],
+.news-article a[data-test-ui="section-label"],
+.news-article a[data-test-ui="subsection-label"] {
+	font-size: 0.72rem;
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: #6b7280;
+	text-decoration: none;
+}
+
+.news-article a[data-test-ui="breadcrumb-home"]:hover,
+.news-article a[data-test-ui="section-label"]:hover,
+.news-article a[data-test-ui="subsection-label"]:hover {
+	color: #111827;
+	text-decoration: underline;
+	text-underline-offset: 0.18em;
+}
+
+.news-article a[data-test-ui="breadcrumb-home"] + span,
+.news-article a[data-test-ui="section-label"] + span {
+	color: #b1b8c4;
+	font-weight: 400;
+}
+
+.news-article [data-test-ui="article-sponsored-info"] {
+	display: flex;
+	flex-direction: column;
+	gap: 0.35rem;
+}
+
+.news-article [data-test-ui="meta-data"] {
+	font-size: 0.82rem;
+	color: #6b7280;
+}
+
+.news-article [data-test-ui="sponsored"] {
+	margin: 1rem 0 1.25rem;
+	background: transparent !important;
+}
+
+.news-article [data-test-ui="sponsored__wrapper"] {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	padding: 0.6rem 0.9rem;
+	border: 1px solid rgba(15, 23, 42, 0.08);
+	border-radius: 0.75rem;
+	background: #f8fafc;
+}
+
+.news-article [data-test-ui="sponsored__text"] {
+	font-size: 0.72rem !important;
+	font-weight: 600 !important;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: #6b7280 !important;
+}
+
+.news-article [data-test-ui="sponsored__logo"] {
+	width: auto;
+	max-height: 2rem;
+}
+
+.news-article [data-test-ui="sponsored__sponsor-logo-box"] {
+	height: 2rem;
+	border-right-color: rgba(15, 23, 42, 0.12) !important;
+}
+
 .news-article h2 {
 	font-size: clamp(1.4rem, 2.4vw, 2rem);
 	margin: 2rem 0 0.9rem;
@@ -78,33 +370,9 @@ body {
 	margin-bottom: 1.5rem;
 }
 
-.news-article [data-test-ui="breadcrumbs"],
-.news-article [data-test-ui="figure__caption"],
-.news-article [data-test-ui="author-meta-container"],
-.news-article [data-test-ui="author-role-distributor-container"] {
-	font-size: 0.95rem;
+.news-article [data-test-ui="figure__caption"] {
+	font-size: 0.92rem;
 	color: #5b6474;
-}
-
-.news-article [data-test-ui="article__heading"] {
-	margin: 0.4rem 0 0.8rem;
-}
-
-.news-article [data-test-ui="article__action-bar"] {
-	margin-top: 1rem;
-	padding-top: 1rem;
-	border-top: 1px solid rgba(15, 23, 42, 0.08);
-}
-
-.news-article [data-test-ui="hero-container"],
-.news-article [data-test-ui="article-media"],
-.news-article [data-test-ui="article-media__image"] {
-	margin: 1.75rem 0;
-}
-
-/* the hero slot already carries the spacing */
-.news-article [data-test-ui="hero-container"] figure {
-	margin: 0;
 }
 
 .news-article a {

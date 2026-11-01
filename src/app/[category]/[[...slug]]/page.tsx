@@ -78,16 +78,27 @@ function decodeUrl(value: string) {
 // The cover image is not present as an <img> in the server-rendered article
 // markup (NZ Herald hydrates it client-side), so take it from the page's own
 // metadata: the <meta property="og:image"> tag, then the embedded story object.
+// If neither carries a real image, fall back to the first photo in the article.
 function resolveCoverImage(html: string): CoverImage {
   const metaTag = html.match(/<meta[^>]*property=["']og:image["'][^>]*>/i);
   const metaSrc = metaTag?.[0] ? decodeUrl(/content=["']([^"']*)["']/i.exec(metaTag[0])?.[1] ?? "") : "";
   const src = metaSrc || decodeUrl(readJsonString(html, "ogImage"));
 
-  if (!src || PLACEHOLDER_IMAGE.test(src)) {
+  if (src && !PLACEHOLDER_IMAGE.test(src)) {
+    return { src, alt: readJsonString(html, "ogImageAlt").replace(/\s+/g, " ").trim() };
+  }
+
+  const articleMatch = html.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i);
+  const fallback = articleMatch?.[1]?.match(/<img\b[^>]*\bsrc=["']([^"']*\/resizer\/v2\/[^"']+)["'][^>]*>/i);
+
+  if (!fallback) {
     return { src: "", alt: "" };
   }
 
-  return { src, alt: readJsonString(html, "ogImageAlt").replace(/\s+/g, " ").trim() };
+  return {
+    src: decodeUrl(fallback[1]),
+    alt: (/<img\b[^>]*\balt=["']([^"']*)["'][^>]*>/i.exec(fallback[0])?.[1] ?? "").replace(/\s+/g, " ").trim(),
+  };
 }
 
 // Every rendition of a photo shares one resizer asset id, so two URLs carrying
@@ -105,7 +116,7 @@ function escapeAttribute(value: string) {
 }
 
 function coverImageTag(cover: CoverImage) {
-  return `<img src="${escapeAttribute(cover.src)}" alt="${escapeAttribute(cover.alt)}" data-test-ui="article-media__image" fetchpriority="high" />`;
+  return `<img src="${escapeAttribute(cover.src)}" alt="${escapeAttribute(cover.alt)}" data-test-ui="article-media__image" fetchpriority="high" decoding="async" />`;
 }
 
 function coverFigure(cover: CoverImage) {
@@ -146,7 +157,6 @@ async function pruneHtml(html: string, cover: CoverImage) {
     "hr",
     "[data-test-ui='article-sidebar-bottom']",
     "#article-RHRLatestfrom",
-    "[data-test-ui='author--information'] img",
     "[data-test-ui='follow-authors-skeleton']",
     "div[data-test-ui='author-role-distributor-container']",
     "div[data-test-ui='nzh-premium-badge']",
@@ -259,7 +269,11 @@ async function pruneHtml(html: string, cover: CoverImage) {
   const response = await rewriter.transform(new Response(`<body>${html}</body>`));
   const transformed = await response.text();
   const bodyMatch = transformed.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-  const inner = bodyMatch ? bodyMatch[1] : transformed;
+  // The rewriter can drop the closing </body> when a removed element sits near
+  // the end of the document, so strip the wrapper manually when needed.
+  const inner = bodyMatch
+    ? bodyMatch[1]
+    : transformed.replace(/^\s*<body[^>]*>/i, "").replace(/<\/body>[\s\S]*$/i, "");
 
   // As a final pass: remove elements that are empty (no text and not media).
   // Use a simple regex-based cleanup to strip empty tags not containing media content.
